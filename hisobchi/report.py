@@ -41,46 +41,50 @@ def tx_line(r: dict) -> str:
     return line
 
 
+MAX_TABLE_ROWS = 30
+NAME_W, CAT_W, SUM_W = 9, 8, 11
+
+
+def _num(amount: Decimal) -> str:
+    return f"{Decimal(amount):,.2f}".rstrip("0").rstrip(".").replace(",", " ")
+
+
+def _cut(text: str, width: int) -> str:
+    text = text or "—"
+    return text if len(text) <= width else text[:width - 1] + "…"
+
+
+def _signed(r: dict) -> str:
+    s = ("+" if r["direction"] == "in" else "-") + _num(r["amount"])
+    if r["currency"] != "UZS":
+        s += r["currency"][:1].lower()  # $ -> "u", rubl -> "r"
+    return s
+
+
 def build_report(rows: list[dict], title: str) -> str:
+    """Telegram'da monospace jadval: har bir yozuv bitta qator, pastda jami."""
     if not rows:
         return f"📊 <b>{escape(title)}</b>\n\nHech qanday yozuv topilmadi."
 
     totals = defaultdict(lambda: {"in": Decimal(0), "out": Decimal(0)})
-    by_cat = defaultdict(lambda: defaultdict(lambda: {"in": Decimal(0), "out": Decimal(0)}))
-    by_person = defaultdict(lambda: defaultdict(lambda: {"in": Decimal(0), "out": Decimal(0)}))
     for r in rows:
-        cur, d, amt = r["currency"], r["direction"], Decimal(r["amount"])
-        totals[cur][d] += amt
-        by_cat[cur][r["category"]][d] += amt
-        if r.get("person"):
-            by_person[cur][r["person"]][d] += amt
+        totals[r["currency"]][r["direction"]] += Decimal(r["amount"])
 
-    out = [f"📊 <b>{escape(title)}</b>  ({len(rows)} ta yozuv)"]
+    shown = rows[-MAX_TABLE_ROWS:]
+    width = 5 + 1 + NAME_W + 1 + CAT_W + 1 + SUM_W
+    lines = [f"{'Sana':<5} {'Kim':<{NAME_W}} {'Nima':<{CAT_W}} {'Summa':>{SUM_W}}", "─" * width]
+    for r in shown:
+        lines.append(f"{r['tx_date']:%d.%m} {_cut(r.get('person'), NAME_W):<{NAME_W}} "
+                     f"{_cut(r['category'], CAT_W):<{CAT_W}} {_signed(r):>{SUM_W}}")
+    lines.append("─" * width)
     for cur in sorted(totals):
         t = totals[cur]
-        out.append("")
-        if len(totals) > 1:
-            out.append(f"<b>[{cur}]</b>")
-        out.append(f"➕ Kirim: <b>{money(t['in'], cur)}</b>")
-        out.append(f"➖ Chiqim: <b>{money(t['out'], cur)}</b>")
-        out.append(f"🟰 Qoldiq: <b>{money(t['in'] - t['out'], cur)}</b>")
+        label = "" if cur == "UZS" else f" ({cur})"
+        lines.append(f"{'Kirim' + label:<{width - SUM_W}}{'+' + _num(t['in']):>{SUM_W}}")
+        lines.append(f"{'Chiqim' + label:<{width - SUM_W}}{'-' + _num(t['out']):>{SUM_W}}")
+        lines.append(f"{'Qoldiq' + label:<{width - SUM_W}}{_num(t['in'] - t['out']):>{SUM_W}}")
 
-        out.append("\n<u>Kategoriyalar bo'yicha:</u>")
-        for cat, v in sorted(by_cat[cur].items(), key=lambda kv: -(kv[1]["in"] + kv[1]["out"])):
-            bits = []
-            if v["in"]:
-                bits.append(f"+{money(v['in'], cur)}")
-            if v["out"]:
-                bits.append(f"−{money(v['out'], cur)}")
-            out.append(f"• {escape(cat)}: {' / '.join(bits)}")
-
-        if by_person[cur]:
-            out.append("\n<u>Odamlar bo'yicha:</u>")
-            for person, v in sorted(by_person[cur].items(), key=lambda kv: -(kv[1]["in"] + kv[1]["out"]))[:15]:
-                bits = []
-                if v["out"]:
-                    bits.append(f"berildi {money(v['out'], cur)}")
-                if v["in"]:
-                    bits.append(f"olindi {money(v['in'], cur)}")
-                out.append(f"• {escape(person)}: {', '.join(bits)}")
-    return "\n".join(out)
+    head = f"📊 <b>{escape(title)}</b> · {len(rows)} ta yozuv (so'm)"
+    if len(rows) > len(shown):
+        head += f"\n<i>Oxirgi {len(shown)} tasi ko'rsatilgan. Hammasi: /export</i>"
+    return head + "\n<pre>" + escape("\n".join(lines)) + "</pre>"

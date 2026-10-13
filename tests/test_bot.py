@@ -54,14 +54,14 @@ def test_record_and_query():
     upd2 = make_update("Aliga qancha berdim?")
     asyncio.run(main.process(upd2, text=upd2.message.text))
     out2 = upd2.message.reply_text.call_args.args[0]
-    assert "Chiqim: <b>100 000 so'm</b>" in out2 and "Vali" not in out2, out2
+    assert "-100 000" in out2 and "Vali" not in out2, out2
     print(out2)
 
 
 def test_report_totals():
     rows = db.query_transactions(42)
     text = report.build_report(rows, "Hammasi")
-    assert "Kirim: <b>500 000 so'm</b>" in text and "Qoldiq: <b>400 000 so'm</b>" in text, text
+    assert "+500 000" in text and "400 000" in text and "<pre>" in text, text
     assert report.money(Decimal("1500000.50"), "USD") == "1 500 000.5 $"
 
 

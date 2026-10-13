@@ -209,10 +209,7 @@ async def process(update: Update, *, text: str | None, image: bytes | None = Non
             f = filters_["date_from"].strftime("%d.%m.%Y") if filters_["date_from"] else "…"
             t = filters_["date_to"].strftime("%d.%m.%Y") if filters_["date_to"] else "…"
             title_bits.append(f"{f} – {t}")
-        text_out = build_report(rows, " · ".join(title_bits) or "Barcha vaqt")
-        if 0 < len(rows) <= 15:
-            text_out += "\n\n<u>Yozuvlar:</u>\n" + "\n".join(f"{r['tx_date']:%d.%m} {tx_line(r)}" for r in rows)
-        await msg.reply_text(text_out, parse_mode=ParseMode.HTML)
+        await msg.reply_text(build_report(rows, " · ".join(title_bits) or "Barcha vaqt"), parse_mode=ParseMode.HTML)
         return
 
     await msg.reply_text(result.get("reply") or "Tushunmadim. /yordam ni bosing.")
