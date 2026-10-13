@@ -1,0 +1,25 @@
+services:
+  - type: web
+    name: ai-hisobchi
+    runtime: python
+    plan: free
+    region: frankfurt
+    buildCommand: pip install -r requirements.txt
+    startCommand: python -m hisobchi.main
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.13.1
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: OWNER_IDS
+        sync: false
+      - key: TIMEZONE
+        value: Asia/Tashkent
+      - key: CLAUDE_MODEL
+        value: claude-opus-5-5
