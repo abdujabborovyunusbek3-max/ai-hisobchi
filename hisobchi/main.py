@@ -260,7 +260,9 @@ async def on_error(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
     log.exception("Xato", exc_info=context.error)
     if isinstance(update, Update) and update.effective_message:
         try:
-            await update.effective_message.reply_text("⚠️ Kutilmagan xato. Qayta urinib ko'ring.")
+            err = context.error
+            await update.effective_message.reply_text(
+                f"⚠️ Kutilmagan xato: {type(err).__name__}: {str(err)[:300]}")
         except Exception:
             pass
 

@@ -111,7 +111,7 @@ async def analyze(*, today: date, text: str | None = None, image: bytes | None =
         log.exception("Claude API error")
         if "credit balance" in str(e.message).lower() or e.status_code == 402:
             raise AIError("API hisobida mablag' tugagan. Balansni to'ldiring.") from e
-        raise AIError(f"Claude xatosi ({e.status_code}). Keyinroq urinib ko'ring.") from e
+        raise AIError(f"Claude xatosi ({e.status_code}): {str(e.message)[:300]}") from e
     except anthropic.APIConnectionError as e:
         raise AIError("Claude bilan aloqa yo'q. Keyinroq urinib ko'ring.") from e
 
