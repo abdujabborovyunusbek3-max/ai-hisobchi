@@ -3,7 +3,7 @@ services:
     name: ai-hisobchi
     runtime: python
     plan: free
-    region: frankfurt
+    region: ohio
     buildCommand: pip install -r requirements.txt
     startCommand: python -m hisobchi.main
     envVars:
