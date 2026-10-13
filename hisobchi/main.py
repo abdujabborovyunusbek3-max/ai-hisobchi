@@ -137,8 +137,24 @@ async def cmd_export(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
 
 # ---------- asosiy ishlov ----------
 
+def _to_amount(value) -> float | None:
+    """Model ba'zan summani matn qilib qaytaradi ("100 000", "1,5"): songa aylantiramiz."""
+    if isinstance(value, (int, float)):
+        return float(value)
+    if isinstance(value, str):
+        cleaned = value.replace(" ", "").replace("\u00a0", "").replace(",", ".")
+        cleaned = "".join(ch for ch in cleaned if ch.isdigit() or ch == ".")
+        if cleaned.count(".") > 1:  # "100.000.000" kabi minglik ajratgich
+            cleaned = cleaned.replace(".", "")
+        try:
+            return float(cleaned) if cleaned else None
+        except ValueError:
+            return None
+    return None
+
+
 def _parse_date(value: str | None) -> date | None:
-    if not value:
+    if not isinstance(value, str) or not value:
         return None
     try:
         return date.fromisoformat(value[:10])
@@ -163,7 +179,8 @@ async def process(update: Update, *, text: str | None, image: bytes | None = Non
     if intent == "record":
         items = []
         for t in result.get("transactions") or []:
-            if not t.get("amount") or t["amount"] <= 0:
+            t["amount"] = _to_amount(t.get("amount"))
+            if t["amount"] is None or t["amount"] <= 0 or t.get("direction") not in ("in", "out"):
                 continue
             t["tx_date"] = _parse_date(t.get("date")) or today()
             items.append(t)
