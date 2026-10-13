@@ -9,7 +9,7 @@ Shaxsiy hisob-kitob boti. Matn, chek/skrinshot yoki ovozli xabar yuborasiz — b
 | 🎤 ovozli xabar | Matnga aylantiradi va yozadi |
 | `bu oy qancha oylik berdim?` | Hisobotni kodda aniq hisoblab beradi |
 
-Buyruqlar: `/hisobot [bugun|hafta|oy|yil|hammasi]`, `/oxirgi`, `/ochir [raqam]`, `/export` (CSV/Excel), `/yordam`.
+Buyruqlar: `/hisobot [bugun|hafta|oy|yil|hammasi]`, `/oxirgi`, `/ochir [raqam]`, `/export` (CSV/Excel), `/sheets` (Google Sheets'ni yangilash), `/yordam`.
 Har bir yozuv ostida **❌ Bekor qilish** tugmasi bor.
 
 ## Qanday ishlaydi
@@ -31,6 +31,16 @@ Har bir yozuv ostida **❌ Bekor qilish** tugmasi bor.
 | `OWNER_IDS` | Sizning Telegram ID (@userinfobot dan bilib olasiz) |
 
 Token va kalitlarni **hech qachon** kodga yozmang — faqat hosting sozlamalariga.
+
+## Google Sheets'ga ulash (ixtiyoriy, bepul)
+Har bir yozuv "Hisob" varag'iga qator bo'lib tushadi, "Jami" varag'ida kirim/chiqim va oylar bo'yicha jadval chiqadi.
+1. https://sheets.new da yangi jadval oching.
+2. **Kengaytmalar (Extensions) → Apps Script**. Ochilgan oynadagi kodni o'chirib, `sheets/apps_script.gs` ichidagini joylang.
+3. Kodning tepasidagi `SECRET` qiymatini o'zingiz o'ylab topgan maxfiy so'zga almashtiring va saqlang (💾).
+4. **Deploy → New deployment** → turi: **Web app**. *Execute as*: **Me**, *Who has access*: **Anyone** → **Deploy**. Google ruxsat so'raydi: **Authorize access** → hisobingiz → **Advanced → Go to ... (unsafe)** → **Allow**.
+5. Chiqqan **Web app URL** (`https://script.google.com/macros/s/.../exec`) ni nusxalang.
+6. Render → ai-hisobchi → **Environment**: `SHEETS_WEBHOOK_URL` = shu URL, `SHEETS_SECRET` = 3-qadamdagi so'z → **Save, rebuild and deploy**.
+7. Botga `/sheets` yozing: avvalgi barcha yozuvlar jadvalga ko'chiriladi.
 
 ## Render.com ga joylash (bepul)
 1. https://render.com ga GitHub orqali kiring.

@@ -119,6 +119,34 @@ def test_plain_mode_for_proxy():
     assert "JSON Schema" in seen["body"]["system"]
 
 
+def test_sheets_sync():
+    """Yozuv qo'shilganda va o'chirilganda Apps Script'ga to'g'ri so'rov ketadi."""
+    from hisobchi import sheets
+    import httpx as real_httpx
+    sent = []
+
+    def handler(request):
+        sent.append(json.loads(request.content))
+        return real_httpx.Response(200, json={"ok": True})
+
+    orig = real_httpx.AsyncClient
+    sheets.httpx.AsyncClient = lambda **kw: orig(transport=real_httpx.MockTransport(handler), **kw)
+    os.environ.update(SHEETS_WEBHOOK_URL="https://script.example/exec", SHEETS_SECRET="s3")
+    try:
+        main.analyze = AsyncMock(return_value={"intent": "record", "reply": "", "query": None, "clean_text": "",
+            "transactions": [{"amount": "250 000", "currency": "UZS", "direction": "out", "category": "ijara",
+                              "person": None, "note": "", "date": None}]})
+        upd = make_update("ijaraga 250 000")
+        asyncio.run(main.process(upd, text=upd.message.text))
+        assert sent[-1]["action"] == "add" and sent[-1]["secret"] == "s3"
+        row = sent[-1]["rows"][0]
+        assert row["amount"] == -250000 and row["type"] == "Chiqim" and row["category"] == "ijara", row
+        assert asyncio.run(sheets.delete([row["id"]])) and sent[-1] == {"action": "delete", "ids": [row["id"]], "secret": "s3"}
+    finally:
+        sheets.httpx.AsyncClient = orig
+        del os.environ["SHEETS_WEBHOOK_URL"]
+
+
 if __name__ == "__main__":
     for name, fn in list(globals().items()):
         if name.startswith("test_"):

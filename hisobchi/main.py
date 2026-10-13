@@ -14,7 +14,7 @@ from telegram.constants import ChatAction, ParseMode
 from telegram.ext import (Application, CallbackQueryHandler, CommandHandler, ContextTypes, MessageHandler,
                           filters)
 
-from . import db
+from . import db, sheets
 from .ai import AIError, analyze, transcribe
 from .report import build_report, period_range, tx_line
 
@@ -24,6 +24,7 @@ log = logging.getLogger("hisobchi")
 
 TZ = ZoneInfo(os.environ.get("TIMEZONE", "Asia/Tashkent"))
 OWNER_IDS = {int(x) for x in os.environ.get("OWNER_IDS", "").replace(" ", "").split(",") if x}
+SHEETS_FAILED = "⚠️ Google Sheets'ga yozib bo'lmadi (bazada saqlandi). Keyin /sheets bilan qayta yuboring."
 SUPPORTED_IMAGES = {"image/jpeg", "image/png", "image/webp", "image/gif"}
 MAX_IMAGE_BYTES = 5 * 1024 * 1024
 
@@ -42,7 +43,8 @@ Savol bering: <i>bu oy qancha oylik berdim?</i>, <i>Ali bilan hisob qanday?</i>
 /hisobot — shu oy hisoboti (/hisobot bugun | hafta | oy | yil | hammasi)
 /oxirgi — oxirgi 10 ta yozuv
 /ochir — oxirgi yozuvni o'chirish (/ochir 15 — 15-raqamlisini)
-/export — barcha yozuvlar CSV (Excel) faylda"""
+/export — barcha yozuvlar CSV (Excel) faylda
+/sheets — Google Sheets jadvalini to'liq yangilash"""
 
 
 def today() -> date:
@@ -118,6 +120,8 @@ async def cmd_delete(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
         ids = [last] if last else []
     n = await asyncio.to_thread(db.delete_transactions, uid, ids) if ids else 0
     await update.message.reply_text(f"🗑 {n} ta yozuv o'chirildi." if n else "O'chiradigan yozuv topilmadi.")
+    if n and not await sheets.delete(ids):
+        await update.message.reply_text(SHEETS_FAILED)
 
 
 async def cmd_export(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -133,6 +137,18 @@ async def cmd_export(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
     data = io.BytesIO(("﻿" + buf.getvalue()).encode("utf-8"))  # BOM: Excel o'zbekcha harflarni to'g'ri ochadi
     await update.message.reply_document(data, filename=f"hisob_{today().isoformat()}.csv",
                                         caption=f"{len(rows)} ta yozuv")
+
+
+async def cmd_sheets(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Google Sheets'dagi jadvalni bazadagi barcha yozuvlar bilan to'liq yangilaydi."""
+    if not await guard(update):
+        return
+    if not sheets.enabled():
+        await update.message.reply_text("Google Sheets ulanmagan (SHEETS_WEBHOOK_URL o'rnatilmagan).")
+        return
+    rows = await asyncio.to_thread(db.query_transactions, update.effective_user.id)
+    ok = await sheets.replace_all(rows)
+    await update.message.reply_text(f"✅ Google Sheets yangilandi: {len(rows)} ta yozuv." if ok else SHEETS_FAILED)
 
 
 # ---------- asosiy ishlov ----------
@@ -200,6 +216,8 @@ async def process(update: Update, *, text: str | None, image: bytes | None = Non
         kb = InlineKeyboardMarkup([[InlineKeyboardButton("❌ Bekor qilish", callback_data=f"del:{ids}")]])
         await msg.reply_text(prefix + "✅ <b>Yozib qo'ydim</b>\n" + "\n".join(lines), parse_mode=ParseMode.HTML,
                              reply_markup=kb)
+        if not await sheets.add(saved):
+            await msg.reply_text(SHEETS_FAILED)
         return
 
     if intent == "query":
@@ -276,6 +294,8 @@ async def on_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         n = await asyncio.to_thread(db.delete_transactions, query.from_user.id, ids)
         await query.answer("O'chirildi" if n else "Allaqachon o'chirilgan")
         await query.edit_message_text(f"🗑 Bekor qilindi ({n} ta yozuv o'chirildi).")
+        if n and not await sheets.delete(ids):
+            await query.message.reply_text(SHEETS_FAILED)
 
 
 async def on_error(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -298,6 +318,7 @@ def build_app() -> Application:
     app.add_handler(CommandHandler("oxirgi", cmd_last))
     app.add_handler(CommandHandler("ochir", cmd_delete))
     app.add_handler(CommandHandler("export", cmd_export))
+    app.add_handler(CommandHandler("sheets", cmd_sheets))
     app.add_handler(MessageHandler(filters.PHOTO | filters.Document.IMAGE, on_image))
     app.add_handler(MessageHandler(filters.VOICE | filters.AUDIO, on_voice))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, on_text))

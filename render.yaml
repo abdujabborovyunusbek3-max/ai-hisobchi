@@ -21,6 +21,10 @@ services:
         sync: false
       - key: OWNER_IDS
         sync: false
+      - key: SHEETS_WEBHOOK_URL
+        sync: false
+      - key: SHEETS_SECRET
+        sync: false
       - key: TIMEZONE
         value: Asia/Tashkent
       - key: CLAUDE_MODEL
