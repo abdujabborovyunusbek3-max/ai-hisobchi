@@ -172,11 +172,17 @@ async def transcribe(audio: bytes, filename: str = "voice.ogg") -> str:
         r = await http.post(
             "https://api.groq.com/openai/v1/audio/transcriptions",
             headers={"Authorization": f"Bearer {key}"},
-            files={"file": (filename, audio)},
+            files={"file": (filename, audio, "audio/ogg" if filename.endswith(".ogg") else "application/octet-stream")},
             data={"model": GROQ_MODEL, "language": "uz", "response_format": "json", "temperature": "0",
                   "prompt": "Pul hisobi: so'm, ming, million, oylik, qarz, ijara, berdim, oldim, to'ladim."},
         )
     if r.status_code != 200:
         log.error("Groq error %s: %s", r.status_code, r.text[:500])
-        raise AIError("Ovozni matnga aylantirib bo'lmadi. Keyinroq urinib ko'ring yoki yozib yuboring.")
+        if r.status_code == 401:
+            raise AIError("GROQ_API_KEY noto'g'ri. Render'da kalitni tekshiring.")
+        try:
+            detail = r.json().get("error", {}).get("message", "")[:200]
+        except ValueError:
+            detail = r.text[:200]
+        raise AIError(f"Ovozni matnga aylantirib bo'lmadi (Groq {r.status_code}: {detail}).")
     return r.json().get("text", "").strip()
