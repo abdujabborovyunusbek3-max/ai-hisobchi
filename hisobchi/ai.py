@@ -32,7 +32,7 @@ Rules for transactions:
 - note: a few words of useful context (what it was for, merchant, card). Empty string if nothing to add.
 - date: YYYY-MM-DD if the message or screenshot shows a date ("kecha" = yesterday, "o'tgan dushanba" etc.), otherwise null.
 
-Screenshots: payment receipts and transfer screens (Click, Payme, Uzum, Paynet, bank apps, cheklar). An outgoing transfer or purchase is "out"; an incoming transfer is "in". Use the recipient or sender name as person and the service or merchant as note. Ignore commission lines unless the commission is the only amount. A statement with several operations gives several transactions. A failed/cancelled payment is not a transaction. If an image has no financial content, use intent "other" and say so.
+Screenshots: payment receipts and transfer screens (Click, Payme, Uzum, Paynet, bank apps, cheklar). An outgoing transfer or purchase is "out"; an incoming transfer is "in". The bot owner's name is given below: if the owner (or a shortened form like "Ali V." for "Ali Valiyev") is the sender, the money left the owner, so direction is "out" and person is the recipient; if the owner is the recipient, direction is "in" and person is the sender. Never use the owner as person. Use the service or merchant as note. Ignore commission lines unless the commission is the only amount. A statement with several operations gives several transactions. A failed/cancelled payment is not a transaction. If an image has no financial content, use intent "other" and say so.
 
 Rules for query: fill only the filters the question needs; leave the others null. Relative periods are resolved against today's date ("bu oy" = first day of this month to today, "o'tgan oy", "bu hafta", "bugun", "kecha"). direction is "all" unless the question is clearly only about income or only about expenses.
 
@@ -90,9 +90,11 @@ class AIError(Exception):
 
 
 async def analyze(*, today: date, text: str | None = None, image: bytes | None = None,
-                  image_mime: str = "image/jpeg", categories: list[str] = (), people: list[str] = ()) -> dict:
+                  image_mime: str = "image/jpeg", categories: list[str] = (), people: list[str] = (),
+                  owner_name: str = "") -> dict:
     """Xabarni (matn va/yoki rasm) tahlil qiladi va OUTPUT_SCHEMA bo'yicha dict qaytaradi."""
     context = (f"Today's date: {today.isoformat()} ({today.strftime('%A')}).\n"
+               f"Bot owner (\"me\"): {owner_name or 'unknown'}\n"
                f"Existing categories: {', '.join(categories) or '(none yet)'}\n"
                f"Known people: {', '.join(people) or '(none yet)'}")
     content: list[dict] = []

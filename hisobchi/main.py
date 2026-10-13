@@ -170,7 +170,7 @@ async def process(update: Update, *, text: str | None, image: bytes | None = Non
     cats, people = await asyncio.to_thread(db.known_labels, uid)
     try:
         result = await analyze(today=today(), text=text, image=image, image_mime=image_mime,
-                               categories=cats, people=people)
+                               categories=cats, people=people, owner_name=update.effective_user.full_name)
     except AIError as e:
         await msg.reply_text(f"⚠️ {e}")
         return
