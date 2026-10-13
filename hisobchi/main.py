@@ -170,10 +170,16 @@ async def process(update: Update, *, text: str | None, image: bytes | None = Non
     cats, people = await asyncio.to_thread(db.known_labels, uid)
     try:
         result = await analyze(today=today(), text=text, image=image, image_mime=image_mime,
-                               categories=cats, people=people, owner_name=update.effective_user.full_name)
+                               categories=cats, people=people, owner_name=update.effective_user.full_name,
+                               is_voice=source == "voice")
     except AIError as e:
         await msg.reply_text(f"⚠️ {e}")
         return
+
+    # Ovozli xabar: tanilgan matnning o'zbekcha tuzatilgan varianti javob boshida ko'rsatiladi
+    prefix = ""
+    if source == "voice":
+        prefix = f"🎤 <i>{escape(result.get('clean_text') or text or '')}</i>\n\n"
 
     intent = result.get("intent")
     if intent == "record":
@@ -185,13 +191,14 @@ async def process(update: Update, *, text: str | None, image: bytes | None = Non
             t["tx_date"] = _parse_date(t.get("date")) or today()
             items.append(t)
         if not items:
-            await msg.reply_text(result.get("reply") or "Summani topa olmadim. Aniqroq yozing.")
+            await msg.reply_text(prefix + escape(result.get("reply") or "Summani topa olmadim. Aniqroq yozing."),
+                                 parse_mode=ParseMode.HTML)
             return
         saved = await asyncio.to_thread(db.add_transactions, uid, items, source, text)
         lines = [tx_line(r) + ("" if r["tx_date"] == today() else f" · {r['tx_date']:%d.%m.%Y}") for r in saved]
         ids = ",".join(str(r["id"]) for r in saved)
         kb = InlineKeyboardMarkup([[InlineKeyboardButton("❌ Bekor qilish", callback_data=f"del:{ids}")]])
-        await msg.reply_text("✅ <b>Yozib qo'ydim</b>\n" + "\n".join(lines), parse_mode=ParseMode.HTML,
+        await msg.reply_text(prefix + "✅ <b>Yozib qo'ydim</b>\n" + "\n".join(lines), parse_mode=ParseMode.HTML,
                              reply_markup=kb)
         return
 
@@ -209,10 +216,12 @@ async def process(update: Update, *, text: str | None, image: bytes | None = Non
             f = filters_["date_from"].strftime("%d.%m.%Y") if filters_["date_from"] else "…"
             t = filters_["date_to"].strftime("%d.%m.%Y") if filters_["date_to"] else "…"
             title_bits.append(f"{f} – {t}")
-        await msg.reply_text(build_report(rows, " · ".join(title_bits) or "Barcha vaqt"), parse_mode=ParseMode.HTML)
+        await msg.reply_text(prefix + build_report(rows, " · ".join(title_bits) or "Barcha vaqt"),
+                             parse_mode=ParseMode.HTML)
         return
 
-    await msg.reply_text(result.get("reply") or "Tushunmadim. /yordam ni bosing.")
+    await msg.reply_text(prefix + escape(result.get("reply") or "Tushunmadim. /yordam ni bosing."),
+                         parse_mode=ParseMode.HTML)
 
 
 async def on_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -254,7 +263,6 @@ async def on_voice(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if not text:
         await msg.reply_text("Ovozda gap eshitilmadi. Qayta yuboring.")
         return
-    await msg.reply_text(f"🎤 <i>{escape(text)}</i>", parse_mode=ParseMode.HTML)
     await process(update, text=text, source="voice")
 
 

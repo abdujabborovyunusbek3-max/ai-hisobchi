@@ -36,6 +36,8 @@ Screenshots: payment receipts and transfer screens (Click, Payme, Uzum, Paynet, 
 
 Rules for query: fill only the filters the question needs; leave the others null. Relative periods are resolved against today's date ("bu oy" = first day of this month to today, "o'tgan oy", "bu hafta", "bugun", "kecha"). direction is "all" unless the question is clearly only about income or only about expenses.
 
+Voice messages: the text comes from automatic speech recognition that handles Uzbek poorly and often writes it as Turkish or mixed Turkish/Uzbek (e.g. "verdim" for "berdim", "aldım" for "oldim", "milyon" for "million", "borç" for "qarz", "kira" for "ijara", "maaş" for "oylik", Turkish letters ı ş ç ğ ü ö). Treat the speaker as speaking Uzbek: reconstruct what they most likely said and interpret that. Put the reconstructed sentence in `clean_text` in correct Uzbek Latin script (o', g', sh, ch). Person names must also be written the Uzbek way. For non-voice messages set `clean_text` to an empty string.
+
 Always fill `reply` with one short sentence in Uzbek (Latin script) that the bot can show the user, e.g. what was understood or why nothing was recorded."""
 
 _NULLABLE_STR = {"anyOf": [{"type": "string"}, {"type": "null"}]}
@@ -79,8 +81,9 @@ OUTPUT_SCHEMA = {
             ]
         },
         "reply": {"type": "string"},
+        "clean_text": {"type": "string"},
     },
-    "required": ["intent", "transactions", "query", "reply"],
+    "required": ["intent", "transactions", "query", "reply", "clean_text"],
     "additionalProperties": False,
 }
 
@@ -91,7 +94,7 @@ class AIError(Exception):
 
 async def analyze(*, today: date, text: str | None = None, image: bytes | None = None,
                   image_mime: str = "image/jpeg", categories: list[str] = (), people: list[str] = (),
-                  owner_name: str = "") -> dict:
+                  owner_name: str = "", is_voice: bool = False) -> dict:
     """Xabarni (matn va/yoki rasm) tahlil qiladi va OUTPUT_SCHEMA bo'yicha dict qaytaradi."""
     context = (f"Today's date: {today.isoformat()} ({today.strftime('%A')}).\n"
                f"Bot owner (\"me\"): {owner_name or 'unknown'}\n"
@@ -101,7 +104,8 @@ async def analyze(*, today: date, text: str | None = None, image: bytes | None =
     if image is not None:
         content.append({"type": "image", "source": {"type": "base64", "media_type": image_mime,
                                                     "data": base64.standard_b64encode(image).decode()}})
-    content.append({"type": "text", "text": f"{context}\n\nMessage:\n{text or '(screenshot, no caption)'}"})
+    label = "Voice message (speech recognition output, may be misheard as Turkish)" if is_voice else "Message"
+    content.append({"type": "text", "text": f"{context}\n\n{label}:\n{text or '(screenshot, no caption)'}"})
 
     try:
         response = await _create(content)
@@ -176,7 +180,9 @@ async def transcribe(audio: bytes, filename: str = "voice.ogg") -> str:
             headers={"Authorization": f"Bearer {key}"},
             files={"file": (filename, audio, "audio/ogg" if filename.endswith(".ogg") else "application/octet-stream")},
             data={"model": GROQ_MODEL, "language": "uz", "response_format": "json", "temperature": "0",
-                  "prompt": "Pul hisobi: so'm, ming, million, oylik, qarz, ijara, berdim, oldim, to'ladim."},
+                  "prompt": ("O'zbek tilida pul hisobi. Masalan: Aliga yuz ming so'm oylik berdim. "
+                             "Validan bir million so'm qarz oldim. Ijaraga uch million to'ladim. "
+                             "Kartaga besh yuz ming tushdi.")},
         )
     if r.status_code != 200:
         log.error("Groq error %s: %s", r.status_code, r.text[:500])
