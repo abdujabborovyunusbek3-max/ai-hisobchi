@@ -102,33 +102,65 @@ async def analyze(*, today: date, text: str | None = None, image: bytes | None =
     content.append({"type": "text", "text": f"{context}\n\nMessage:\n{text or '(screenshot, no caption)'}"})
 
     try:
-        response = await client.beta.messages.create(
-            model=MODEL,
-            max_tokens=8000,
-            system=SYSTEM_PROMPT,
-            messages=[{"role": "user", "content": content}],
-            output_config={"effort": "low", "format": {"type": "json_schema", "schema": OUTPUT_SCHEMA}},
-            betas=["server-side-fallback-2026-07-01"],
-            fallbacks="default",
-        )
+        response = await _create(content)
     except anthropic.AuthenticationError as e:
         raise AIError("ANTHROPIC_API_KEY noto'g'ri yoki o'rnatilmagan.") from e
     except anthropic.RateLimitError as e:
         raise AIError("Claude hozir band (limit). Birozdan keyin qayta yuboring.") from e
     except anthropic.APIStatusError as e:
         log.exception("Claude API error")
-        if "credit balance" in str(e.message).lower():
-            raise AIError("Anthropic hisobida mablag' tugagan. console.anthropic.com da to'ldiring.") from e
+        if "credit balance" in str(e.message).lower() or e.status_code == 402:
+            raise AIError("API hisobida mablag' tugagan. Balansni to'ldiring.") from e
         raise AIError(f"Claude xatosi ({e.status_code}). Keyinroq urinib ko'ring.") from e
     except anthropic.APIConnectionError as e:
         raise AIError("Claude bilan aloqa yo'q. Keyinroq urinib ko'ring.") from e
 
     if response.stop_reason == "refusal":
         raise AIError("Bu xabarni tahlil qilib bo'lmadi.")
-    text_out = next((b.text for b in response.content if b.type == "text"), None)
+    text_out = "".join(b.text for b in response.content if b.type == "text").strip()
     if not text_out:
         raise AIError("Claude javob bermadi.")
-    return json.loads(text_out)
+    try:
+        return _extract_json(text_out)
+    except ValueError as e:
+        log.error("JSON emas: %s", text_out[:500])
+        raise AIError("Javobni tushunib bo'lmadi. Qayta yuboring.") from e
+
+
+def _extract_json(text: str) -> dict:
+    """Javobdan JSON obyektni ajratib oladi (```json ... ``` ichida bo'lsa ham)."""
+    start, end = text.find("{"), text.rfind("}")
+    if start == -1 or end <= start:
+        raise ValueError("no json")
+    return json.loads(text[start:end + 1])
+
+
+# Rasmiy API (api.anthropic.com) bo'lmasa, vositachi xizmat structured output yoki beta
+# parametrlarini qo'llamasligi mumkin. Shunda oddiy "faqat JSON qaytar" usuliga o'tamiz.
+_OFFICIAL_API = "anthropic.com" in (os.environ.get("ANTHROPIC_BASE_URL") or "api.anthropic.com")
+_plain_mode = not _OFFICIAL_API
+
+_PLAIN_INSTRUCTION = ("\n\nRespond with ONLY one JSON object (no markdown, no extra text) that matches this "
+                      "JSON Schema:\n" + json.dumps(OUTPUT_SCHEMA))
+
+
+async def _create(content: list[dict]):
+    global _plain_mode
+    if not _plain_mode:
+        try:
+            return await client.beta.messages.create(
+                model=MODEL, max_tokens=8000, system=SYSTEM_PROMPT,
+                messages=[{"role": "user", "content": content}],
+                output_config={"effort": "low", "format": {"type": "json_schema", "schema": OUTPUT_SCHEMA}},
+                betas=["server-side-fallback-2026-07-01"], fallbacks="default",
+            )
+        except anthropic.BadRequestError:
+            log.warning("Structured output ishlamadi, oddiy JSON rejimiga o'tildi", exc_info=True)
+            _plain_mode = True
+    return await client.messages.create(
+        model=MODEL, max_tokens=8000, system=SYSTEM_PROMPT + _PLAIN_INSTRUCTION,
+        messages=[{"role": "user", "content": content}],
+    )
 
 
 async def transcribe(audio: bytes, filename: str = "voice.ogg") -> str:

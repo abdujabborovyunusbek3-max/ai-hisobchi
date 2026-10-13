@@ -13,6 +13,8 @@ services:
         sync: false
       - key: ANTHROPIC_API_KEY
         sync: false
+      - key: ANTHROPIC_BASE_URL
+        sync: false
       - key: GROQ_API_KEY
         sync: false
       - key: DATABASE_URL
@@ -22,4 +24,4 @@ services:
       - key: TIMEZONE
         value: Asia/Tashkent
       - key: CLAUDE_MODEL
-        value: claude-opus-5-5
+        sync: false

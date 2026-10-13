@@ -24,6 +24,8 @@ Har bir yozuv ostida **❌ Bekor qilish** tugmasi bor.
 |---|---|
 | `TELEGRAM_BOT_TOKEN` | @BotFather |
 | `ANTHROPIC_API_KEY` | https://console.anthropic.com → API Keys (balansga kamida $5) |
+| `ANTHROPIC_BASE_URL` | Faqat vositachi xizmat (MWAPI kabi) bo'lsa: `https://api.mwapi.dev`. Rasmiy kalitda bo'sh |
+| `CLAUDE_MODEL` | Model nomi, masalan `claude-opus-5-5` (vositachida "Model Plaza"dagi nomni yozing) |
 | `GROQ_API_KEY` | https://console.groq.com → API Keys (bepul) |
 | `DATABASE_URL` | https://neon.tech → yangi loyiha → Connection string |
 | `OWNER_IDS` | Sizning Telegram ID (@userinfobot dan bilib olasiz) |

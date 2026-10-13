@@ -97,6 +97,28 @@ def test_claude_request_shape():
     assert body["messages"][0]["content"][0]["type"] == "image"
 
 
+def test_plain_mode_for_proxy():
+    """Vositachi xizmat (MWAPI kabi): beta parametrlarsiz, JSON matndan ajratiladi."""
+    seen = {}
+
+    def handler(request: httpx.Request):
+        seen["body"] = json.loads(request.content)
+        return httpx.Response(200, json={
+            "id": "msg_2", "type": "message", "role": "assistant", "model": "m",
+            "stop_reason": "end_turn", "stop_sequence": None, "usage": {"input_tokens": 1, "output_tokens": 1},
+            "content": [{"type": "text", "text": '```json\n{"intent": "other", "transactions": [], '
+                                                 '"query": null, "reply": "Ok"}\n```'}]})
+
+    import anthropic
+    ai.client = anthropic.AsyncAnthropic(api_key="x", base_url="http://proxy",
+                                         http_client=httpx.AsyncClient(transport=httpx.MockTransport(handler)))
+    ai._plain_mode = True
+    res = asyncio.run(ai.analyze(today=date(2026, 10, 13), text="salom"))
+    assert res["reply"] == "Ok"
+    assert "fallbacks" not in seen["body"] and "output_config" not in seen["body"]
+    assert "JSON Schema" in seen["body"]["system"]
+
+
 if __name__ == "__main__":
     for name, fn in list(globals().items()):
         if name.startswith("test_"):
